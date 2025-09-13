@@ -6,6 +6,12 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import AIChat from "./pages/AIChat";
+import Transactions from "./pages/Transactions";
+import Portfolio from "./pages/Portfolio";
+import RealEstate from "./pages/RealEstate";
+import EPFCredit from "./pages/EPFCredit";
+import AssetsLiabilities from "./pages/AssetsLiabilities";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,27 +43,32 @@ const App = () => (
           } />
           <Route path="/transactions" element={
             <ProtectedRoute>
-              <Dashboard />
+              <Transactions />
             </ProtectedRoute>
           } />
           <Route path="/portfolio" element={
             <ProtectedRoute>
-              <Dashboard />
+              <Portfolio />
             </ProtectedRoute>
           } />
           <Route path="/real-estate" element={
             <ProtectedRoute>
-              <Dashboard />
+              <RealEstate />
             </ProtectedRoute>
           } />
           <Route path="/epf-credit" element={
             <ProtectedRoute>
-              <Dashboard />
+              <EPFCredit />
             </ProtectedRoute>
           } />
           <Route path="/assets" element={
             <ProtectedRoute>
-              <Dashboard />
+              <AssetsLiabilities />
+            </ProtectedRoute>
+          } />
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />

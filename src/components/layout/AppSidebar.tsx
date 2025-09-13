@@ -107,11 +107,25 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4">
         <div className="space-y-2">
-          <EnhancedButton variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/50">
+          <EnhancedButton 
+            variant="ghost" 
+            size="sm" 
+            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/50"
+            onClick={() => window.location.href = '/settings'}
+          >
             <Settings className="h-4 w-4" />
             <span className="group-data-[collapsible=icon]:hidden">Settings</span>
           </EnhancedButton>
-          <EnhancedButton variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/50">
+          <EnhancedButton 
+            variant="ghost" 
+            size="sm" 
+            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/50"
+            onClick={() => {
+              localStorage.removeItem("financeai_auth")
+              localStorage.removeItem("financeai_permissions")
+              window.location.href = '/login'
+            }}
+          >
             <LogOut className="h-4 w-4" />
             <span className="group-data-[collapsible=icon]:hidden">Logout</span>
           </EnhancedButton>
