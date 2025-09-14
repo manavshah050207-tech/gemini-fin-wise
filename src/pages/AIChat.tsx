@@ -1,275 +1,148 @@
-import { useState, useRef, useEffect } from "react"
-import { AppLayout } from "@/components/layout/AppLayout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { EnhancedButton } from "@/components/ui/enhanced-button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { 
-  Send, 
-  MessageSquare, 
-  Bot, 
-  User, 
-  TrendingUp, 
-  CreditCard, 
-  DollarSign,
-  Sparkles
-} from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Permission, Transaction, Portfolio, Asset, Liability } from '@/entities/all';
+import { InvokeLLM } from '@/integrations/Core';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Send, Bot, User as UserIcon } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import ReactMarkdown from 'react-markdown';
+import { Skeleton } from '@/components/ui/skeleton';
 
-interface Message {
-  id: string
-  content: string
-  sender: 'user' | 'ai'
-  timestamp: Date
-}
-
-const quickPrompts = [
-  "What was my biggest expense last month?",
-  "Am I saving enough compared to my income?",
-  "Should I hold or sell TCS from my portfolio?",
-  "Give me a debt repayment strategy",
-  "Analyze my spending patterns",
-  "What's my current net worth?"
-]
-const mockResponses = {
-  "expense": "Based on your transaction history, your biggest expense last month was Shopping (₹35,000), followed by Food (₹25,000). I notice your shopping expenses increased by 40% compared to the previous month. Consider setting a monthly budget limit for discretionary spending.",
-  
-  "saving": "You're currently saving 18% of your income, which is above the recommended 15%. However, your emergency fund could be stronger. I suggest increasing it to cover 6 months of expenses (currently at 3.2 months).",
-  
-  "portfolio": "TCS is showing strong fundamentals with a 12% growth this quarter. Given your long-term investment horizon and the stock's consistent performance, I recommend holding. Consider adding more on any dips below ₹3,200.",
-  
-  "debt": "I've analyzed your liabilities. Priority order: 1) Clear credit card debt (18% interest) first, 2) Prepay personal loan partially, 3) Continue home loan EMIs as planned. This strategy will save you ₹2.3L in interest over 3 years.",
-  
-  "spending": "Your spending pattern shows consistency in essentials but volatility in discretionary categories. Peak spending occurs around month-end (salary credit). Consider automated investments right after salary credit to improve savings discipline.",
-  
-  "networth": "Your current net worth is ₹42.8L (Assets: ₹58.2L, Liabilities: ₹15.4L). This represents a 15.3% growth YoY. Your asset allocation is healthy with 65% in equity, 20% real estate, 15% fixed deposits."
-}
-
-export default function AIChat() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      content: "Hello! I'm your AI Finance Assistant. I have access to your financial data and can help you with investment advice, spending analysis, and financial planning. What would you like to know?",
-      sender: "ai",
-      timestamp: new Date()
-          }
-  ])
-  const [inputMessage, setInputMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const { toast } = useToast()
-
-  const scrollToBottom = () => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
-      }
-    }
-  }
+export default function AIAssistantPage() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [permissions, setPermissions] = useState(null);
+  const scrollAreaRef = useRef();
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const getAIResponse = (userMessage: string): string => {
-    const message = userMessage.toLowerCase()
-    
-    if (message.includes('expense') || message.includes('spending') || message.includes('biggest')) {
-      return mockResponses.expense
-    } else if (message.includes('saving') || message.includes('save') || message.includes('enough')) {
-      return mockResponses.saving
-    } else if (message.includes('tcs') || message.includes('stock') || message.includes('hold') || message.includes('sell')) {
-      return mockResponses.portfolio
-    } else if (message.includes('debt') || message.includes('loan') || message.includes('repay')) {
-      return mockResponses.debt
-    } else if (message.includes('pattern') || message.includes('analyze')) {
-      return mockResponses.spending
-    } else if (message.includes('net worth') || message.includes('networth') || message.includes('worth')) {
-       return mockResponses.networth
-    } else {
-      return "Sorry i cannot answer that question now. Based on your current data, I can help you with spending analysis, investment advice, debt management, and financial planning. Could you be more specific about what you'd like to know?"
-    }
-  }
-
-  const sendMessage = async () => {
-    if (!inputMessage.trim()) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: inputMessage,
-      sender: 'user',
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, userMessage])
-    setInputMessage("")
-    setIsLoading(true)
-
-    // Simulate AI response delay
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        content: getAIResponse(inputMessage),
-        sender: 'ai',
-        timestamp: new Date()
+    const fetchPermissions = async () => {
+      try {
+        const currentUser = await User.me();
+        const userPermissions = await Permission.filter({ user_email: currentUser.email });
+        setPermissions(userPermissions[0]);
+      } catch (error) {
+        console.error("Error fetching permissions:", error);
       }
-      
-      setMessages(prev => [...prev, aiResponse])
-      setIsLoading(false)
-    }, 1500)
-  }
+    };
+    fetchPermissions();
+    setMessages([{ sender: 'ai', text: "Hello! I'm your AI financial assistant, now with conversational memory. I can answer follow-up questions. How can I help you today?" }]);
+  }, []);
 
-  const sendQuickPrompt = (prompt: string) => {
-    setInputMessage(prompt)
-    setTimeout(() => sendMessage(), 100)
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
- sendMessage()
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+        scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }
+  }, [messages]);
 
+  const handleSend = async () => {
+    if (!input.trim() || !permissions) return;
+    
+    const userMessage = { sender: 'user', text: input };
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput('');
+    setLoading(true);
 
+    try {
+      // 1. Build context based on permissions
+      let financialContext = "This is the user's financial data. Use only the data provided. Be concise and helpful.\n";
+      if (permissions.transactions) {
+        const transactions = await Transaction.list('-date', 20);
+        financialContext += \n**Recent Transactions:**\n${JSON.stringify(transactions.slice(0, 5), null, 2)}\n;
+      }
+      if (permissions.portfolio) {
+        const portfolio = await Portfolio.list();
+        const simplifiedPortfolio = portfolio.map(p => ({symbol: p.symbol, quantity: p.quantity, current_price: p.current_price, pnl: (p.current_price - p.avg_buy_price) * p.quantity }));
+        financialContext += \n**Stock Portfolio Summary:**\n${JSON.stringify(simplifiedPortfolio, null, 2)}\n;
+      }
+       if (permissions.assets_liabilities) {
+        const assets = await Asset.list();
+        const liabilities = await Liability.list();
+        financialContext += \n**Assets:**\n${JSON.stringify(assets, null, 2)}\n;
+        financialContext += \n**Liabilities:**\n${JSON.stringify(liabilities, null, 2)}\n;
+      }
 
+      // 2. Build conversation history
+      const conversationHistory = newMessages.slice(-6) // Get last 6 messages for context
+        .map(msg => ${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text})
+        .join('\n');
 
+      // 3. Create the prompt
+      const prompt = `You are an expert personal finance assistant.
+        Your underlying model is powerful, like GPT or Gemini.
+        Use the following financial data and conversation history to provide a clear, actionable answer in Markdown.
 
+        <FinancialData>
+        ${financialContext}
+        </FinancialData>
+
+        <ConversationHistory>
+        ${conversationHistory}
+        </ConversationHistory>
+        
+        Answer the last user question based on all the above information.
+      `;
+
+      // 4. Call the LLM
+      const response = await InvokeLLM({ prompt });
+      
+      const aiMessage = { sender: 'ai', text: response };
+      setMessages(prev => [...prev, aiMessage]);
+
+    } catch (error) {
+      console.error("AI Assistant Error:", error);
+      const errorMessage = { sender: 'ai', text: 'Sorry, I encountered an error. Please check your connection and try again.' };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <AppLayout>
-      <div className="h-[calc(100vh-4rem)] flex flex-col bg-gradient-card">
-        {/* Chat Header */}
-        <div className="border-b border-border bg-card/50 backdrop-blur-sm p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
-              <Bot className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">AI Finance Assistant</h1>
-              <p className="text-muted-foreground">Powered by advanced financial intelligence</p>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-              <span className="text-sm font-medium text-primary">Online</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Prompts - Only show when no messages or just welcome */}
-        {messages.length <= 1 && (
-          <div className="p-6 border-b border-border">
-            <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Quick Questions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {quickPrompts.map((prompt, index) => (
-                <EnhancedButton
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  className="text-left justify-start h-auto p-3 whitespace-normal hover:bg-primary/5 hover:border-primary/20"
-                  onClick={() => sendQuickPrompt(prompt)}
-                >
-                  <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0 text-primary" />
-                  {prompt}
-                </EnhancedButton>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full p-6" ref={scrollAreaRef}>
+    <div className="h-full flex flex-col p-4 bg-muted/20">
+      <Card className="flex-1 flex flex-col shadow-2xl">
+        <CardContent className="flex-1 p-0 flex flex-col">
+          <ScrollArea ref={scrollAreaRef} className="flex-1 p-6">
             <div className="space-y-6">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {message.sender === 'ai' && (
-                    <Avatar className="w-8 h-8 bg-gradient-primary">
-                      <AvatarFallback className="bg-transparent">
-                        <Bot className="h-5 w-5 text-primary-foreground" />
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                  
-                  <div className={`max-w-[80%] ${message.sender === 'user' ? 'order-1' : ''}`}>
-                    <div
-                      className={`rounded-2xl px-4 py-3 ${
-                        message.sender === 'user'
-                          ? 'bg-primary text-primary-foreground ml-auto'
-                          : 'bg-card border shadow-sm'
-                      }`}
-                    >
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 px-1">
-                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+              {messages.map((msg, i) => (
+                <div key={i} className={flex items-start gap-3 ${msg.sender === 'user' ? 'justify-end' : ''}}>
+                  {msg.sender === 'ai' && <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center"><Bot className="w-5 h-5 text-white" /></div>}
+                  <div className={p-4 rounded-2xl max-w-lg shadow-md ${msg.sender === 'ai' ? 'bg-card' : 'bg-primary text-primary-foreground'}}>
+                    <ReactMarkdown className="prose dark:prose-invert prose-p:my-0 prose-headings:my-2">{msg.text}</ReactMarkdown>
                   </div>
-
-                  {message.sender === 'user' && (
-                    <Avatar className="w-8 h-8 bg-secondary">
-                      <AvatarFallback>
-                        <User className="h-5 w-5 text-secondary-foreground" />
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
+                  {msg.sender === 'user' && <div className="w-8 h-8 rounded-full flex-shrink-0 bg-slate-200 flex items-center justify-center"><UserIcon className="w-5 h-5 text-slate-600"/></div>}
                 </div>
               ))}
-
-              {/* Loading indicator */}
-              {isLoading && (
-                <div className="flex gap-3 justify-start">
-                  <Avatar className="w-8 h-8 bg-gradient-primary">
-                    <AvatarFallback className="bg-transparent">
-                      <Bot className="h-5 w-5 text-primary-foreground" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="bg-card border shadow-sm rounded-2xl px-4 py-3">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              {loading && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center"><Bot className="w-5 h-5 text-white" /></div>
+                    <div className="p-4 rounded-2xl bg-card shadow-md">
+                        <Skeleton className="h-4 w-24" />
                     </div>
                   </div>
-                </div>
               )}
             </div>
           </ScrollArea>
-        </div>
-
-        {/* Message Input */}
-        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-6">
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
+          <div className="p-4 border-t bg-card">
+            <div className="relative">
               <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me anything about your finances..."
-                className="pr-12 min-h-[48px] text-base"
-                disabled={isLoading}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && handleSend()}
+                placeholder="Ask a follow-up, like 'show me the top 3 expenses'..."
+                className="pr-12 h-12 rounded-full text-base"
+                disabled={loading || !permissions}
               />
+              <Button size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full" onClick={handleSend} disabled={loading || !input.trim()}>
+                <Send className="h-5 w-5" />
+              </Button>
             </div>
-            <EnhancedButton
-              onClick={sendMessage}
-              disabled={!inputMessage.trim() || isLoading}
-              variant="gradient"
-              size="icon"
-              className="min-w-[48px] h-[48px]"
-            >
-              <Send className="h-5 w-5" />
-            </EnhancedButton>
+             {!permissions && <p className="text-xs text-center text-muted-foreground mt-2">Loading permissions...</p>}
           </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            AI responses are based on your financial data. Always consult a financial advisor for major decisions.
-          </p>
-        </div>
-      </div>
-    </AppLayout>
-  )
-
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
