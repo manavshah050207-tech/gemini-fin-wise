@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: https://gemini-fin-wise.vercel.app/login
+**URL**: https://gemini-fin-wise.vercel.app/
 
 ## How can I edit this code?
 
