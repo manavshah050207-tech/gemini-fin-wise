@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/a292f695-3763-4352-9294-3e05ca9d5ccb
+**URL**: gemini-fin-wise.vercel.app/login
 
 ## How can I edit this code?
 
