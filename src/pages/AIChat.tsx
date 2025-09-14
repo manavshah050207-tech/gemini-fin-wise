@@ -1,57 +1,140 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { useState, useRef, useEffect } from "react"
+import { AppLayout } from "@/components/layout/AppLayout"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { EnhancedButton } from "@/components/ui/enhanced-button"
+import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { 
+  Send, 
+  MessageSquare, 
+  Bot, 
+  User, 
+  TrendingUp, 
+  CreditCard, 
+  DollarSign,
+  Sparkles
+} from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
-// This config is essential for Vercel to correctly handle the serverless function
-export const config = {
-  runtime: 'edge',
-};
+interface Message {
+  id: string
+  content: string
+  sender: 'user' | 'ai'
+  timestamp: Date
+}
 
-export default async function handler(req: Request) {
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+const quickPrompts = [
+  "What was my biggest expense last month?",
+  "Am I saving enough compared to my income?",
+  "Should I hold or sell TCS from my portfolio?",
+  "Give me a debt repayment strategy",
+  "Analyze my spending patterns",
+  "What's my current net worth?"
+]
+const mockResponses = {
+  "expense": "Based on your transaction history, your biggest expense last month was Shopping (₹35,000), followed by Food (₹25,000). I notice your shopping expenses increased by 40% compared to the previous month. Consider setting a monthly budget limit for discretionary spending.",
+  
+  "saving": "You're currently saving 18% of your income, which is above the recommended 15%. However, your emergency fund could be stronger. I suggest increasing it to cover 6 months of expenses (currently at 3.2 months).",
+  
+  "portfolio": "TCS is showing strong fundamentals with a 12% growth this quarter. Given your long-term investment horizon and the stock's consistent performance, I recommend holding. Consider adding more on any dips below ₹3,200.",
+  
+  "debt": "I've analyzed your liabilities. Priority order: 1) Clear credit card debt (18% interest) first, 2) Prepay personal loan partially, 3) Continue home loan EMIs as planned. This strategy will save you ₹2.3L in interest over 3 years.",
+  
+  "spending": "Your spending pattern shows consistency in essentials but volatility in discretionary categories. Peak spending occurs around month-end (salary credit). Consider automated investments right after salary credit to improve savings discipline.",
+  
+  "networth": "Your current net worth is ₹42.8L (Assets: ₹58.2L, Liabilities: ₹15.4L). This represents a 15.3% growth YoY. Your asset allocation is healthy with 65% in equity, 20% real estate, 15% fixed deposits."
+}
+
+export default function AIChat() {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      content: "Hello! I'm your AI Finance Assistant. I have access to your financial data and can help you with investment advice, spending analysis, and financial planning. What would you like to know?",
+      sender: "ai",
+      timestamp: new Date()
+          }
+  ])
+  const [inputMessage, setInputMessage] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
+
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const body = await req.json();
-    const { prompt: userPrompt } = body;
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
-    if (!userPrompt) {
-      return new Response(JSON.stringify({ error: 'Prompt is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+  const getAIResponse = (userMessage: string): string => {
+    const message = userMessage.toLowerCase()
+    
+    if (message.includes('expense') || message.includes('spending') || message.includes('biggest')) {
+      return mockResponses.expense
+    } else if (message.includes('saving') || message.includes('save') || message.includes('enough')) {
+      return mockResponses.saving
+    } else if (message.includes('tcs') || message.includes('stock') || message.includes('hold') || message.includes('sell')) {
+      return mockResponses.portfolio
+    } else if (message.includes('debt') || message.includes('loan') || message.includes('repay')) {
+      return mockResponses.debt
+    } else if (message.includes('pattern') || message.includes('analyze')) {
+      return mockResponses.spending
+    } else if (message.includes('net worth') || message.includes('networth') || message.includes('worth')) {
+       return mockResponses.networth
+    } else {
+      return "Sorry i cannot answer that question now. Based on your current data, I can help you with spending analysis, investment advice, debt management, and financial planning. Could you be more specific about what you'd like to know?"
+    }
+  }
+
+  const sendMessage = async () => {
+    if (!inputMessage.trim()) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: inputMessage,
+      sender: 'user',
+      timestamp: new Date()
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    setMessages(prev => [...prev, userMessage])
+    setInputMessage("")
+    setIsLoading(true)
 
-    const instructions = `You are "FinanceAI", a friendly and highly knowledgeable personal finance assistant.
-    - Your primary purpose is to help users by answering their questions about finance, investment, and market trends.
-    - You must answer general financial questions clearly and accurately. For example, if a user asks "what is an IPO?" or "explain inflation", you must provide a helpful definition.
-    - Do not fall back to a generic script. Answer the user's question directly and thoughtfully.
-    - Always be conversational, professional, and helpful.`;
-    
-    const fullPrompt = `${instructions}\n\nUser Question: "${userPrompt}"\n\nFinanceAI Response:`;
-
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
-    const text = response.text();
-
-    return new Response(JSON.stringify({ response: text }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-  } catch (error) {
-    console.error('Error in Gemini API call:', error);
-    return new Response(JSON.stringify({ error: 'Failed to get response from AI' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // Simulate AI response delay
+    setTimeout(() => {
+      const aiResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        content: getAIResponse(inputMessage),
+        sender: 'ai',
+        timestamp: new Date()
+      }
+      
+      setMessages(prev => [...prev, aiResponse])
+      setIsLoading(false)
+    }, 1500)
   }
-}
+
+  const sendQuickPrompt = (prompt: string) => {
+    setInputMessage(prompt)
+    setTimeout(() => sendMessage(), 100)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+ sendMessage()
+    }
+  }
+
+
+
 
 
 
